@@ -31,11 +31,13 @@ const typeDefs = gql`
     getAllEmployees: [Employee]
     findEmployeeById(id: ID!): Employee
     findEmployeesByPositionOrDepartment(position: String, department: String): [Employee]
+    
+    # ✅ Moved login to Query instead of Mutation
+    login(email: String!, password: String!): AuthPayload
   }
 
   type Mutation {
     signup(username: String!, email: String!, password: String!): User
-    login(email: String!, password: String!): AuthPayload
     addEmployee(
       firstName: String!,
       lastName: String!,

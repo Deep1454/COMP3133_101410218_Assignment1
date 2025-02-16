@@ -7,6 +7,21 @@ const jwt = require("jsonwebtoken");
 
 const resolvers = {
     Query: {
+
+        // User Login
+        login: async (_, { email, password }) => {
+            const user = await User.findOne({ email });
+            if (!user) throw new Error("User not found");
+
+            // user authentication by matching credentials.
+            const isValid = await bcrypt.compare(password, user.password);
+            if (!isValid) throw new Error("Invalid credentials");
+
+            // JWT Token expiration
+            const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+            return { token, user };
+        },
         // Get all employees
         getAllEmployees: async () => await Employee.find(),
 
@@ -33,36 +48,58 @@ const resolvers = {
             return newUser;
         },
 
-        // User Login
-        login: async (_, { email, password }) => {
-            const user = await User.findOne({ email });
-            if (!user) throw new Error("User not found");
 
-            // user authentication by matching credentials.
-            const isValid = await bcrypt.compare(password, user.password);
-            if (!isValid) throw new Error("Invalid credentials");
-
-            // JWT Token expiration
-            const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-            return { token, user };
-        },
 
         // Add new Employee
         addEmployee: async (_, { firstName, lastName, email, gender, position, salary, joinDate, department, profileImage }) => {
             let imagePath = null;
+
             if (profileImage) {
-                const { createReadStream, filename } = await profileImage;
-                const savePath = path.join(__dirname, "../uploads", filename);
+                console.log("Received File:", profileImage); // Debugging step
+
+                const { filename, createReadStream } = await profileImage.promise;
+                
+                if (!filename) {
+                    throw new Error("Invalid file upload: filename missing");
+                }
+
+                console.log("File Name:", filename);
+
+                const uploadDir = path.join(__dirname, "../uploads");
+
+                if (!fs.existsSync(uploadDir)) {
+                    fs.mkdirSync(uploadDir, { recursive: true });
+                }
+
+                const filePath = path.join(uploadDir, filename);
+                const stream = createReadStream();
+
+                console.log("Saving File To:", filePath);
+
                 await new Promise((resolve, reject) => {
-                    createReadStream().pipe(fs.createWriteStream(savePath))
-                        .on("finish", resolve)
-                        .on("error", reject);
+                    const writeStream = fs.createWriteStream(filePath);
+                    stream.pipe(writeStream);
+                    writeStream.on("finish", resolve);
+                    writeStream.on("error", reject);
                 });
+
                 imagePath = `/uploads/${filename}`;
+            } else {
+                console.log("No file received");
             }
 
-            const newEmployee = new Employee({ firstName, lastName, email, gender, position, salary, joinDate, department, profileImage: imagePath });
+            const newEmployee = new Employee({
+                firstName,
+                lastName,
+                email,
+                gender,
+                position,
+                salary,
+                joinDate,
+                department,
+                profileImage: imagePath
+            });
+
             return await newEmployee.save();
         },
 
